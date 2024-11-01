@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.6)
+project(dns-server-test)
+add_compile_options(-Wall -Wextra -Werror -Wpedantic)
+add_link_options()
+include_directories(include) 
+add_executable(dns-server-test src/dns-server-test.c)
+install(TARGETS dns-server-test DESTINATION /usr/bin)
