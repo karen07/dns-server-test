@@ -1,10 +1,27 @@
 #include "dns-server-test.h"
 
+int32_t sended;
+int32_t readed;
+
+int32_t error_count;
+
+const array_hashmap_t *urls_map_struct;
+
 void print_help(void)
 {
     printf("Commands:\n"
            "-listen 0.0.0.0:00            Listen address\n");
     exit(EXIT_FAILURE);
+}
+
+uint32_t djb33_hash_len(const char *s, size_t len)
+{
+    uint32_t h = 5381;
+    while (*s && len--) {
+        h += (h << 5);
+        h ^= *s++;
+    }
+    return h;
 }
 
 int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
@@ -109,6 +126,55 @@ memory_t get_url(memory_t *cache_data, char *url)
     return res;
 }
 
+void *stat(__attribute__((unused)) void *arg)
+{
+    printf("Min:Sec Send_RPS Read_RPS Sended Readed Diff Errors\n");
+
+    int32_t sended_old = 0;
+    int32_t readed_old = 0;
+
+    while (true) {
+        sleep(1);
+
+        time_t now = time(NULL);
+        struct tm *tm_struct = localtime(&now);
+        printf("%d:%d %d %d %d %d %d %d\n", tm_struct->tm_min, tm_struct->tm_sec,
+               sended - sended_old, readed - readed_old, sended, readed, readed - sended,
+               error_count);
+
+        sended_old = sended;
+        readed_old = readed;
+    }
+}
+
+static uint32_t add_url_hash(const void *void_elem)
+{
+    const url_data_t *elem = void_elem;
+    return djb33_hash_len(elem->url, -1);
+}
+
+static int32_t add_url_cmp(const void *void_elem1, const void *void_elem2)
+{
+    const url_data_t *elem1 = void_elem1;
+    const url_data_t *elem2 = void_elem2;
+
+    return !strcmp(elem1->url, elem2->url);
+}
+
+static uint32_t find_url_hash(const void *void_elem)
+{
+    const char *elem = void_elem;
+    return djb33_hash_len(elem, -1);
+}
+
+static int32_t find_url_cmp(const void *void_elem1, const void *void_elem2)
+{
+    const char *elem1 = void_elem1;
+    const url_data_t *elem2 = void_elem2;
+
+    return !strcmp(elem1, elem2->url);
+}
+
 int32_t main(int32_t argc, char *argv[])
 {
     FILE *cache_fp;
@@ -178,15 +244,32 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    memory_t test_get;
-    test_get = get_url(&cache_data, "itmaher.net");
-    if (test_get.data) {
-        printf("Finded itmaher.net\n");
+    urls_map_struct = init_array_hashmap(1000000, 1.0, sizeof(url_data_t));
+    if (urls_map_struct == NULL) {
+        printf("No free memory for urls_map_struct\n");
+        exit(EXIT_FAILURE);
     }
 
-    test_get = get_url(&cache_data, "itmaher1.net");
-    if (!test_get.data) {
-        printf("Not Finded itmaher1.net\n");
+    array_hashmap_set_func(urls_map_struct, add_url_hash, add_url_cmp, find_url_hash, find_url_cmp);
+
+    char *cur_pos_ptr = cache_data.data;
+    char *cache_data_end = cache_data.data + cache_data.size;
+
+    while (cur_pos_ptr < cache_data_end) {
+        char *url_data = cur_pos_ptr;
+        int32_t url_len = strlen(cur_pos_ptr);
+
+        cur_pos_ptr += url_len + 1;
+        int32_t *packet_size = (int32_t *)cur_pos_ptr;
+
+        url_data_t add_elem;
+        add_elem.packet = cur_pos_ptr + sizeof(int32_t);
+        add_elem.packet_size = *packet_size;
+        add_elem.url = url_data;
+
+        array_hashmap_add_elem(urls_map_struct, &add_elem, NULL, NULL);
+
+        cur_pos_ptr += *packet_size + sizeof(int32_t);
     }
 
     listen_addr.sin_family = AF_INET;
@@ -222,15 +305,29 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    pthread_t stat_thread;
+    if (pthread_create(&stat_thread, NULL, stat, NULL)) {
+        printf("Can't create stat_thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_detach(stat_thread)) {
+        printf("Can't detach stat_thread\n");
+        exit(EXIT_FAILURE);
+    }
+
     while (true) {
         receive_msg.size = recvfrom(listen_socket, receive_msg.data, receive_msg.max_size, 0,
                                     (struct sockaddr *)&client_addr, &client_addr_length);
+
+        readed++;
 
         char *cur_pos_ptr = receive_msg.data;
         char *receive_msg_end = receive_msg.data + receive_msg.size;
 
         // DNS HEADER
         if (cur_pos_ptr + sizeof(dns_header_t) > receive_msg_end) {
+            error_count++;
             continue;
         }
 
@@ -239,11 +336,13 @@ int32_t main(int32_t argc, char *argv[])
         uint16_t first_bit_mark = FIRST_BIT_UINT16;
         uint16_t flags = ntohs(header->flags);
         if ((flags & first_bit_mark) == first_bit_mark) {
+            error_count++;
             continue;
         }
 
         uint16_t quest_count = ntohs(header->quest);
         if (quest_count != 1) {
+            error_count++;
             continue;
         }
 
@@ -254,31 +353,30 @@ int32_t main(int32_t argc, char *argv[])
         char *que_url_start = cur_pos_ptr;
         char *que_url_end = NULL;
         if (get_url_from_packet(&receive_msg, que_url_start, &que_url_end, &que_url) != 0) {
+            error_count++;
             continue;
         }
         cur_pos_ptr = que_url_end;
 
-        memory_t send_data;
-        send_data = get_url(&cache_data, que_url.data + 1);
+        url_data_t res_elem;
+        int32_t find_res;
+        find_res = array_hashmap_find_elem(urls_map_struct, que_url.data + 1, &res_elem);
+        if (find_res == 1) {
+            printf("Finded %s %d\n", que_url.data + 1, res_elem.packet_size);
 
-        if (send_data.data) {
-            dns_header_t *send_header = (dns_header_t *)send_data.data;
+            dns_header_t *send_header = (dns_header_t *)res_elem.packet;
             send_header->id = header->id;
 
-            if (sendto(listen_socket, send_data.data, send_data.size, 0,
+            if (sendto(listen_socket, res_elem.packet, res_elem.packet_size, 0,
                        (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
                 printf("Can't send to client :%s\n", strerror(errno));
+                error_count++;
+            } else {
+                sended++;
             }
+        } else {
+            error_count++;
         }
-    }
-
-    printf("Min:Sec Send_RPS Read_RPS Sended Readed Diff \n");
-    while (true) {
-        sleep(1);
-
-        time_t now = time(NULL);
-        struct tm *tm_struct = localtime(&now);
-        printf("%d:%d\n", tm_struct->tm_min, tm_struct->tm_sec);
     }
 
     return 0;

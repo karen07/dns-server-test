@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <linux/limits.h>
 #include <stdbool.h>
+#include "array_hashmap.h"
 
 #define PACKET_MAX_SIZE 1600
 #define URL_MAX_SIZE 300
@@ -39,3 +40,9 @@ typedef struct memory {
     size_t size;
     size_t max_size;
 } memory_t;
+
+typedef struct url_data {
+    char *url;
+    int32_t packet_size;
+    char *packet;
+} url_data_t;
