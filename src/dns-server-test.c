@@ -94,8 +94,6 @@ memory_t get_url(memory_t *cache_data, char *url)
         int32_t *packet_size = (int32_t *)cur_pos_ptr;
 
         if (!strcmp(url, url_data)) {
-            printf("Finded %s\n", url_data);
-
             res.data = cur_pos_ptr + sizeof(int32_t);
             res.size = *packet_size;
 
@@ -180,9 +178,16 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    memory_t res_data;
-    res_data = get_url(&cache_data, "itmaher.net");
-    printf("%d\n", (int32_t)res_data.size);
+    memory_t test_get;
+    test_get = get_url(&cache_data, "itmaher.net");
+    if (test_get.data) {
+        printf("Finded itmaher.net\n");
+    }
+
+    test_get = get_url(&cache_data, "itmaher1.net");
+    if (!test_get.data) {
+        printf("Not Finded itmaher1.net\n");
+    }
 
     listen_addr.sin_family = AF_INET;
     listen_addr.sin_port = htons(listen_port);
@@ -204,7 +209,7 @@ int32_t main(int32_t argc, char *argv[])
     receive_msg.max_size = PACKET_MAX_SIZE;
     receive_msg.data = (char *)malloc(receive_msg.max_size * sizeof(char));
     if (receive_msg.data == 0) {
-        printf("No free memory for receive_msg from DNS\n");
+        printf("No free memory for receive_msg from client\n");
         exit(EXIT_FAILURE);
     }
 
@@ -233,17 +238,12 @@ int32_t main(int32_t argc, char *argv[])
 
         uint16_t first_bit_mark = FIRST_BIT_UINT16;
         uint16_t flags = ntohs(header->flags);
-        if ((flags & first_bit_mark) == 0) {
+        if ((flags & first_bit_mark) == first_bit_mark) {
             continue;
         }
 
         uint16_t quest_count = ntohs(header->quest);
         if (quest_count != 1) {
-            continue;
-        }
-
-        uint16_t ans_count = ntohs(header->ans);
-        if (ans_count == 0) {
             continue;
         }
 
@@ -258,7 +258,18 @@ int32_t main(int32_t argc, char *argv[])
         }
         cur_pos_ptr = que_url_end;
 
-        res_data = get_url(&cache_data, que_url.data + 1);
+        memory_t send_data;
+        send_data = get_url(&cache_data, que_url.data + 1);
+
+        if (send_data.data) {
+            dns_header_t *send_header = (dns_header_t *)send_data.data;
+            send_header->id = header->id;
+
+            if (sendto(listen_socket, send_data.data, send_data.size, 0,
+                       (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
+                printf("Can't send to client :%s\n", strerror(errno));
+            }
+        }
     }
 
     printf("Min:Sec Send_RPS Read_RPS Sended Readed Diff \n");
