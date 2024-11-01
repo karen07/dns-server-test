@@ -121,7 +121,7 @@ int32_t main(int32_t argc, char *argv[])
 
     uint32_t client_addr_length = sizeof(client_addr);
 
-    printf("\nDNS perftest started\n");
+    printf("\nDNS server test started\n");
 
     for (int32_t i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-listen")) {
