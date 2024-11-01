@@ -96,36 +96,6 @@ int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new
     return 0;
 }
 
-memory_t get_url(memory_t *cache_data, char *url)
-{
-    char *cur_pos_ptr = cache_data->data;
-    char *cache_data_end = cache_data->data + cache_data->size;
-
-    memory_t res;
-
-    while (cur_pos_ptr < cache_data_end) {
-        char *url_data = cur_pos_ptr;
-        int32_t url_len = strlen(cur_pos_ptr);
-
-        cur_pos_ptr += url_len + 1;
-        int32_t *packet_size = (int32_t *)cur_pos_ptr;
-
-        if (!strcmp(url, url_data)) {
-            res.data = cur_pos_ptr + sizeof(int32_t);
-            res.size = *packet_size;
-
-            return res;
-        }
-
-        cur_pos_ptr += *packet_size + sizeof(int32_t);
-    }
-
-    res.data = NULL;
-    res.size = 0;
-
-    return res;
-}
-
 void *stat(__attribute__((unused)) void *arg)
 {
     printf("Min:Sec Send_RPS Read_RPS Sended Readed Diff Errors\n");
@@ -362,8 +332,6 @@ int32_t main(int32_t argc, char *argv[])
         int32_t find_res;
         find_res = array_hashmap_find_elem(urls_map_struct, que_url.data + 1, &res_elem);
         if (find_res == 1) {
-            printf("Finded %s %d\n", que_url.data + 1, res_elem.packet_size);
-
             dns_header_t *send_header = (dns_header_t *)res_elem.packet;
             send_header->id = header->id;
 
