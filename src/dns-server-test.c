@@ -148,10 +148,10 @@ static int32_t find_url_cmp(const void *void_elem1, const void *void_elem2)
 
 int32_t main(int32_t argc, char *argv[])
 {
-    FILE *cache_fp;
+    FILE *cache_fp = NULL;
 
-    uint32_t listen_ip;
-    uint16_t listen_port;
+    uint32_t listen_ip = 0;
+    uint16_t listen_port = 0;
 
     struct sockaddr_in listen_addr, client_addr;
     int32_t listen_socket;
