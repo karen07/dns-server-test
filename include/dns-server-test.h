@@ -15,7 +15,7 @@
 #include "array_hashmap.h"
 
 #define PACKET_MAX_SIZE 1600
-#define URL_MAX_SIZE 300
+#define DOMAIN_MAX_SIZE 300
 #define EXIT_WAIT_SEC 5
 
 #define FIRST_BIT_UINT16 0x8000
@@ -41,8 +41,8 @@ typedef struct memory {
     size_t max_size;
 } memory_t;
 
-typedef struct url_data {
-    char *url;
+typedef struct domain_data {
+    char *domain;
     int32_t packet_size;
     char *packet;
-} url_data_t;
+} domain_data_t;

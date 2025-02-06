@@ -5,7 +5,7 @@ int32_t readed;
 
 int32_t error_count;
 
-const array_hashmap_t *urls_map_struct;
+array_hashmap_t domains_map_struct;
 
 void print_help(void)
 {
@@ -24,12 +24,12 @@ uint32_t djb33_hash_len(const char *s, size_t len)
     return h;
 }
 
-int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
-                            memory_t *url)
+int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
+                            memory_t *domain)
 {
     uint8_t two_bit_mark = FIRST_TWO_BITS_UINT8;
     int32_t part_len = 0;
-    int32_t url_len = 0;
+    int32_t domain_len = 0;
 
     int32_t jump_count = 0;
 
@@ -49,10 +49,10 @@ int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new
                 if (part_len == 0) {
                     break;
                 } else {
-                    if (url_len >= (int32_t)url->max_size) {
+                    if (domain_len >= (int32_t)domain->max_size) {
                         return 2;
                     }
-                    url->data[url_len++] = '.';
+                    domain->data[domain_len++] = '.';
                 }
             } else if ((*cur_pos_ptr & two_bit_mark) == two_bit_mark) {
                 if (cur_pos_ptr + sizeof(uint16_t) > receive_msg_end) {
@@ -74,10 +74,10 @@ int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new
             if (cur_pos_ptr + sizeof(uint8_t) > receive_msg_end) {
                 return 6;
             }
-            if (url_len >= (int32_t)url->max_size) {
+            if (domain_len >= (int32_t)domain->max_size) {
                 return 7;
             }
-            url->data[url_len++] = *cur_pos_ptr;
+            domain->data[domain_len++] = *cur_pos_ptr;
             cur_pos_ptr++;
             part_len--;
         }
@@ -87,11 +87,11 @@ int32_t get_url_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new
         *new_cur_pos_ptr = cur_pos_ptr;
     }
 
-    if (url_len >= (int32_t)url->max_size) {
+    if (domain_len >= (int32_t)domain->max_size) {
         return 8;
     }
-    url->data[url_len] = 0;
-    url->size = url_len;
+    domain->data[domain_len] = 0;
+    domain->size = domain_len;
 
     return 0;
 }
@@ -118,32 +118,32 @@ void *stat(__attribute__((unused)) void *arg)
     }
 }
 
-static uint32_t add_url_hash(const void *void_elem)
+static array_hashmap_hash domain_add_hash(const void *add_elem_data)
 {
-    const url_data_t *elem = void_elem;
-    return djb33_hash_len(elem->url, -1);
+    const domain_data_t *elem = add_elem_data;
+    return djb33_hash_len(elem->domain, -1);
 }
 
-static int32_t add_url_cmp(const void *void_elem1, const void *void_elem2)
+static array_hashmap_bool domain_add_cmp(const void *add_elem_data, const void *hashmap_elem_data)
 {
-    const url_data_t *elem1 = void_elem1;
-    const url_data_t *elem2 = void_elem2;
+    const domain_data_t *elem1 = add_elem_data;
+    const domain_data_t *elem2 = hashmap_elem_data;
 
-    return !strcmp(elem1->url, elem2->url);
+    return !strcmp(elem1->domain, elem2->domain);
 }
 
-static uint32_t find_url_hash(const void *void_elem)
+static array_hashmap_hash domain_find_hash(const void *find_elem_data)
 {
-    const char *elem = void_elem;
+    const char *elem = find_elem_data;
     return djb33_hash_len(elem, -1);
 }
 
-static int32_t find_url_cmp(const void *void_elem1, const void *void_elem2)
+static array_hashmap_bool domain_find_cmp(const void *find_elem_data, const void *hashmap_elem_data)
 {
-    const char *elem1 = void_elem1;
-    const url_data_t *elem2 = void_elem2;
+    const char *elem1 = find_elem_data;
+    const domain_data_t *elem2 = hashmap_elem_data;
 
-    return !strcmp(elem1, elem2->url);
+    return !strcmp(elem1, elem2->domain);
 }
 
 int32_t main(int32_t argc, char *argv[])
@@ -215,30 +215,30 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    urls_map_struct = init_array_hashmap(1000000, 1.0, sizeof(url_data_t));
-    if (urls_map_struct == NULL) {
-        printf("No free memory for urls_map_struct\n");
+    domains_map_struct = array_hashmap_init(1000000, 1.0, sizeof(domain_data_t));
+    if (domains_map_struct == NULL) {
+        printf("No free memory for domains_map_struct\n");
         exit(EXIT_FAILURE);
     }
 
-    array_hashmap_set_func(urls_map_struct, add_url_hash, add_url_cmp, find_url_hash, find_url_cmp);
+    array_hashmap_set_func(domains_map_struct, domain_add_hash, domain_add_cmp, domain_find_hash, domain_find_cmp, domain_find_hash, domain_find_cmp);
 
     char *cur_pos_ptr = cache_data.data;
     char *cache_data_end = cache_data.data + cache_data.size;
 
     while (cur_pos_ptr < cache_data_end) {
-        char *url_data = cur_pos_ptr;
-        int32_t url_len = strlen(cur_pos_ptr);
+        char *domain_data = cur_pos_ptr;
+        int32_t domain_len = strlen(cur_pos_ptr);
 
-        cur_pos_ptr += url_len + 1;
+        cur_pos_ptr += domain_len + 1;
         int32_t *packet_size = (int32_t *)cur_pos_ptr;
 
-        url_data_t add_elem;
+        domain_data_t add_elem;
         add_elem.packet = cur_pos_ptr + sizeof(int32_t);
         add_elem.packet_size = *packet_size;
-        add_elem.url = url_data;
+        add_elem.domain = domain_data;
 
-        array_hashmap_add_elem(urls_map_struct, &add_elem, NULL, NULL);
+        array_hashmap_add_elem(domains_map_struct, &add_elem, NULL, NULL);
 
         cur_pos_ptr += *packet_size + sizeof(int32_t);
     }
@@ -267,12 +267,12 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    memory_t que_url;
-    que_url.size = 0;
-    que_url.max_size = URL_MAX_SIZE;
-    que_url.data = (char *)malloc(que_url.max_size * sizeof(char));
-    if (que_url.data == 0) {
-        printf("No free memory for que_url\n");
+    memory_t que_domain;
+    que_domain.size = 0;
+    que_domain.max_size = DOMAIN_MAX_SIZE;
+    que_domain.data = (char *)malloc(que_domain.max_size * sizeof(char));
+    if (que_domain.data == 0) {
+        printf("No free memory for que_domain\n");
         exit(EXIT_FAILURE);
     }
 
@@ -320,19 +320,19 @@ int32_t main(int32_t argc, char *argv[])
         cur_pos_ptr += sizeof(dns_header_t);
         // DNS HEADER
 
-        // QUE URL
-        char *que_url_start = cur_pos_ptr;
-        char *que_url_end = NULL;
-        if (get_url_from_packet(&receive_msg, que_url_start, &que_url_end, &que_url) != 0) {
+        // QUE DOMAIN
+        char *que_domain_start = cur_pos_ptr;
+        char *que_domain_end = NULL;
+        if (get_domain_from_packet(&receive_msg, que_domain_start, &que_domain_end, &que_domain) != 0) {
             error_count++;
             continue;
         }
-        cur_pos_ptr = que_url_end;
+        cur_pos_ptr = que_domain_end;
 
-        url_data_t res_elem;
+        domain_data_t res_elem;
         int32_t find_res;
-        find_res = array_hashmap_find_elem(urls_map_struct, que_url.data + 1, &res_elem);
-        if (find_res == 1) {
+        find_res = array_hashmap_find_elem(domains_map_struct, que_domain.data + 1, &res_elem);
+        if (find_res == array_hashmap_elem_finded) {
             dns_header_t *send_header = (dns_header_t *)res_elem.packet;
             send_header->id = header->id;
 
