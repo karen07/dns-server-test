@@ -25,7 +25,7 @@ uint32_t djb33_hash_len(const char *s, size_t len)
 }
 
 int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
-                            memory_t *domain)
+                               memory_t *domain)
 {
     uint8_t two_bit_mark = FIRST_TWO_BITS_UINT8;
     int32_t part_len = 0;
@@ -221,7 +221,8 @@ int32_t main(int32_t argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    array_hashmap_set_func(domains_map_struct, domain_add_hash, domain_add_cmp, domain_find_hash, domain_find_cmp, domain_find_hash, domain_find_cmp);
+    array_hashmap_set_func(domains_map_struct, domain_add_hash, domain_add_cmp, domain_find_hash,
+                           domain_find_cmp, domain_find_hash, domain_find_cmp);
 
     char *cur_pos_ptr = cache_data.data;
     char *cache_data_end = cache_data.data + cache_data.size;
@@ -323,7 +324,8 @@ int32_t main(int32_t argc, char *argv[])
         // QUE DOMAIN
         char *que_domain_start = cur_pos_ptr;
         char *que_domain_end = NULL;
-        if (get_domain_from_packet(&receive_msg, que_domain_start, &que_domain_end, &que_domain) != 0) {
+        if (get_domain_from_packet(&receive_msg, que_domain_start, &que_domain_end, &que_domain) !=
+            0) {
             error_count++;
             continue;
         }
