@@ -142,7 +142,8 @@ static array_hashmap_bool domain_find_cmp(const void *find_elem_data, const void
 void print_help(void)
 {
     printf("\nCommands:\n"
-           "-listen 0.0.0.0:00            Listen address\n");
+           "  Required parameters:\n"
+           "    -listen 0.0.0.0:00            Listen address\n");
     exit(EXIT_FAILURE);
 }
 
