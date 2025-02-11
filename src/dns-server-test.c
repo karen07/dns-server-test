@@ -7,13 +7,6 @@ int32_t error_count;
 
 array_hashmap_t domains_map_struct;
 
-void print_help(void)
-{
-    printf("Commands:\n"
-           "-listen 0.0.0.0:00            Listen address\n");
-    exit(EXIT_FAILURE);
-}
-
 uint32_t djb33_hash_len(const char *s, size_t len)
 {
     uint32_t h = 5381;
@@ -146,6 +139,13 @@ static array_hashmap_bool domain_find_cmp(const void *find_elem_data, const void
     return !strcmp(elem1, elem2->domain);
 }
 
+void print_help(void)
+{
+    printf("\nCommands:\n"
+           "-listen 0.0.0.0:00            Listen address\n");
+    exit(EXIT_FAILURE);
+}
+
 int32_t main(int32_t argc, char *argv[])
 {
     FILE *cache_fp = NULL;
@@ -158,7 +158,7 @@ int32_t main(int32_t argc, char *argv[])
 
     uint32_t client_addr_length = sizeof(client_addr);
 
-    printf("\nDNS server test started\n");
+    printf("\nDNS server test started\n\n");
 
     for (int32_t i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-listen")) {
@@ -179,16 +179,19 @@ int32_t main(int32_t argc, char *argv[])
             }
             continue;
         }
+        printf("Error:\n");
         printf("Unknown command %s\n", argv[i]);
         print_help();
     }
 
     if (listen_ip == 0) {
+        printf("Error:\n");
         printf("Programm need listen IP\n");
         print_help();
     }
 
     if (listen_port == 0) {
+        printf("Error:\n");
         printf("Programm need listen port\n");
         print_help();
     }
@@ -250,12 +253,12 @@ int32_t main(int32_t argc, char *argv[])
 
     listen_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (listen_socket < 0) {
-        printf("Error:Error while creating socket %s\n", strerror(errno));
+        printf("Error while creating socket %s\n", strerror(errno));
         return 0;
     }
 
     if (bind(listen_socket, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0) {
-        printf("Error:Couldn't bind to the port %s\n", strerror(errno));
+        printf("Couldn't bind to the port %s\n", strerror(errno));
         return 0;
     }
 
