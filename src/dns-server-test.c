@@ -17,6 +17,30 @@ uint32_t djb33_hash_len(const char *s, size_t len)
     return h;
 }
 
+void errmsg(const char *format, ...)
+{
+    va_list args;
+
+    printf("Error: ");
+
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+
+    exit(EXIT_FAILURE);
+}
+
+#define GET_DOMAIN_OK 0
+#define GET_DOMAIN_FIRST_BYTE_ERROR 1
+#define GET_DOMAIN_SECOND_BYTE_ERROR 3
+#define GET_DOMAIN_LAST_CH_DOMAIN_ERROR 2
+#define GET_DOMAIN_MAX_JUMP_COUNT 100
+#define GET_DOMAIN_JUMP_COUNT_ERROR 4
+#define GET_DOMAIN_TWO_BITS_ERROR 5
+#define GET_DOMAIN_CH_BYTE_ERROR 6
+#define GET_DOMAIN_ADD_CH_DOMAIN_ERROR 7
+#define GET_DOMAIN_NULL_CH_DOMAIN_ERROR 8
+
 int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
                                memory_t *domain)
 {
@@ -32,7 +56,7 @@ int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **
     while (true) {
         if (part_len == 0) {
             if (cur_pos_ptr + sizeof(uint8_t) > receive_msg_end) {
-                return 1;
+                return GET_DOMAIN_FIRST_BYTE_ERROR;
             }
             uint8_t first_byte_data = (*cur_pos_ptr) & (~two_bit_mark);
 
@@ -43,13 +67,13 @@ int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **
                     break;
                 } else {
                     if (domain_len >= (int32_t)domain->max_size) {
-                        return 2;
+                        return GET_DOMAIN_LAST_CH_DOMAIN_ERROR;
                     }
                     domain->data[domain_len++] = '.';
                 }
             } else if ((*cur_pos_ptr & two_bit_mark) == two_bit_mark) {
                 if (cur_pos_ptr + sizeof(uint16_t) > receive_msg_end) {
-                    return 3;
+                    return GET_DOMAIN_SECOND_BYTE_ERROR;
                 }
                 if (*new_cur_pos_ptr == NULL) {
                     *new_cur_pos_ptr = cur_pos_ptr + 2;
@@ -57,18 +81,18 @@ int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **
                 uint8_t second_byte_data = *(cur_pos_ptr + 1);
                 int32_t padding = 256 * first_byte_data + second_byte_data;
                 cur_pos_ptr = receive_msg->data + padding;
-                if (jump_count++ > 100) {
-                    return 4;
+                if (jump_count++ > GET_DOMAIN_MAX_JUMP_COUNT) {
+                    return GET_DOMAIN_JUMP_COUNT_ERROR;
                 }
             } else {
-                return 5;
+                return GET_DOMAIN_TWO_BITS_ERROR;
             }
         } else {
             if (cur_pos_ptr + sizeof(uint8_t) > receive_msg_end) {
-                return 6;
+                return GET_DOMAIN_CH_BYTE_ERROR;
             }
             if (domain_len >= (int32_t)domain->max_size) {
-                return 7;
+                return GET_DOMAIN_ADD_CH_DOMAIN_ERROR;
             }
             domain->data[domain_len++] = *cur_pos_ptr;
             cur_pos_ptr++;
@@ -81,12 +105,12 @@ int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **
     }
 
     if (domain_len >= (int32_t)domain->max_size) {
-        return 8;
+        return GET_DOMAIN_NULL_CH_DOMAIN_ERROR;
     }
     domain->data[domain_len] = 0;
     domain->size = domain_len;
 
-    return 0;
+    return GET_DOMAIN_OK;
 }
 
 void *stat(__attribute__((unused)) void *arg)
@@ -141,38 +165,38 @@ static array_hashmap_bool domain_find_cmp(const void *find_elem_data, const void
 
 void print_help(void)
 {
-    printf("\nCommands:\n"
+    printf("Commands:\n"
            "  Required parameters:\n"
-           "    -listen 0.0.0.0:00            Listen address\n");
-    exit(EXIT_FAILURE);
+           "    -l  \"x.x.x.x:xx\"  Listen address\n");
 }
 
 int32_t main(int32_t argc, char *argv[])
 {
     FILE *cache_fp = NULL;
 
-    uint32_t listen_ip = 0;
-    uint16_t listen_port = 0;
-
     struct sockaddr_in listen_addr, client_addr;
     int32_t listen_socket;
 
     uint32_t client_addr_length = sizeof(client_addr);
 
-    printf("\nDNS server test started\n\n");
+    printf("DNS server test started\n");
+    printf("Launch parameters:\n");
+
+    listen_addr.sin_addr.s_addr = INADDR_NONE;
 
     for (int32_t i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "-listen")) {
+        if (!strcmp(argv[i], "-l")) {
             if (i != argc - 1) {
+                printf("  Listen  \"%s\"\n", argv[i + 1]);
                 char *colon_ptr = strchr(argv[i + 1], ':');
                 if (colon_ptr) {
-                    sscanf(colon_ptr + 1, "%hu", &listen_port);
+                    uint16_t tmp_port = 0;
+                    sscanf(colon_ptr + 1, "%hu", &tmp_port);
                     *colon_ptr = 0;
                     if (strlen(argv[i + 1]) < INET_ADDRSTRLEN) {
-                        listen_ip = inet_addr(argv[i + 1]);
-                        struct in_addr listen_ip_in_addr;
-                        listen_ip_in_addr.s_addr = listen_ip;
-                        printf("Listen %s:%hu\n", inet_ntoa(listen_ip_in_addr), listen_port);
+                        listen_addr.sin_family = AF_INET;
+                        listen_addr.sin_port = htons(tmp_port);
+                        listen_addr.sin_addr.s_addr = inet_addr(argv[i + 1]);
                     }
                     *colon_ptr = ':';
                 }
@@ -180,29 +204,23 @@ int32_t main(int32_t argc, char *argv[])
             }
             continue;
         }
-        printf("Error:\n");
-        printf("Unknown command %s\n", argv[i]);
         print_help();
+        errmsg("Unknown command %s\n", argv[i]);
     }
 
-    if (listen_ip == 0) {
-        printf("Error:\n");
-        printf("Programm need listen IP\n");
+    if (listen_addr.sin_addr.s_addr == INADDR_NONE) {
         print_help();
+        errmsg("The program need correct listen IP\n");
     }
 
-    if (listen_port == 0) {
-        printf("Error:\n");
-        printf("Programm need listen port\n");
+    if (listen_addr.sin_port == 0) {
         print_help();
+        errmsg("The program need correct listen port\n");
     }
-
-    printf("\n");
 
     cache_fp = fopen("cache.data", "r");
     if (!cache_fp) {
-        printf("Error opening file cache.data\n");
-        return 0;
+        errmsg("Error opening file cache.data\n");
     }
 
     memory_t cache_data;
@@ -215,14 +233,12 @@ int32_t main(int32_t argc, char *argv[])
 
     if (fread(cache_data.data, sizeof(char), cache_data.size, cache_fp) !=
         (size_t)cache_data.size) {
-        printf("Can't read cache.data file\n");
-        exit(EXIT_FAILURE);
+        errmsg("Can't read cache.data file\n");
     }
 
     domains_map_struct = array_hashmap_init(1000000, 1.0, sizeof(domain_data_t));
     if (domains_map_struct == NULL) {
-        printf("No free memory for domains_map_struct\n");
-        exit(EXIT_FAILURE);
+        errmsg("No free memory for domains_map_struct\n");
     }
 
     array_hashmap_set_func(domains_map_struct, domain_add_hash, domain_add_cmp, domain_find_hash,
@@ -248,19 +264,13 @@ int32_t main(int32_t argc, char *argv[])
         cur_pos_ptr += *packet_size + sizeof(int32_t);
     }
 
-    listen_addr.sin_family = AF_INET;
-    listen_addr.sin_port = htons(listen_port);
-    listen_addr.sin_addr.s_addr = listen_ip;
-
     listen_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (listen_socket < 0) {
-        printf("Error while creating socket %s\n", strerror(errno));
-        return 0;
+        errmsg("Error while creating socket %s\n", strerror(errno));
     }
 
     if (bind(listen_socket, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0) {
-        printf("Couldn't bind to the port %s\n", strerror(errno));
-        return 0;
+        errmsg("Couldn't bind to the port %s\n", strerror(errno));
     }
 
     memory_t receive_msg;
@@ -268,8 +278,7 @@ int32_t main(int32_t argc, char *argv[])
     receive_msg.max_size = PACKET_MAX_SIZE;
     receive_msg.data = (char *)malloc(receive_msg.max_size * sizeof(char));
     if (receive_msg.data == 0) {
-        printf("No free memory for receive_msg from client\n");
-        exit(EXIT_FAILURE);
+        errmsg("No free memory for receive_msg from client\n");
     }
 
     memory_t que_domain;
@@ -277,19 +286,16 @@ int32_t main(int32_t argc, char *argv[])
     que_domain.max_size = DOMAIN_MAX_SIZE;
     que_domain.data = (char *)malloc(que_domain.max_size * sizeof(char));
     if (que_domain.data == 0) {
-        printf("No free memory for que_domain\n");
-        exit(EXIT_FAILURE);
+        errmsg("No free memory for que_domain\n");
     }
 
     pthread_t stat_thread;
     if (pthread_create(&stat_thread, NULL, stat, NULL)) {
-        printf("Can't create stat_thread\n");
-        exit(EXIT_FAILURE);
+        errmsg("Can't create stat_thread\n");
     }
 
     if (pthread_detach(stat_thread)) {
-        printf("Can't detach stat_thread\n");
-        exit(EXIT_FAILURE);
+        errmsg("Can't detach stat_thread\n");
     }
 
     while (true) {
@@ -344,7 +350,7 @@ int32_t main(int32_t argc, char *argv[])
 
             if (sendto(listen_socket, res_elem.packet, res_elem.packet_size, 0,
                        (struct sockaddr *)&client_addr, sizeof(client_addr)) < 0) {
-                printf("Can't send to client :%s\n", strerror(errno));
+                errmsg("Can't send to client :%s\n", strerror(errno));
                 error_count++;
             } else {
                 sended++;
