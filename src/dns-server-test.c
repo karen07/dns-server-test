@@ -220,7 +220,7 @@ int32_t main(int32_t argc, char *argv[])
 
     cache_fp = fopen("cache.data", "r");
     if (!cache_fp) {
-        errmsg("Error opening file cache.data\n");
+        errmsg("Can't open file cache.data\n");
     }
 
     memory_t cache_data;
@@ -266,11 +266,11 @@ int32_t main(int32_t argc, char *argv[])
 
     listen_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (listen_socket < 0) {
-        errmsg("Error while creating socket %s\n", strerror(errno));
+        errmsg("Can't create socket %s\n", strerror(errno));
     }
 
     if (bind(listen_socket, (struct sockaddr *)&listen_addr, sizeof(listen_addr)) < 0) {
-        errmsg("Couldn't bind to the port %s\n", strerror(errno));
+        errmsg("Can't bind to the port %s\n", strerror(errno));
     }
 
     memory_t receive_msg;
