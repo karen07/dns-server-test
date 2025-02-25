@@ -4,5 +4,5 @@ DNS-server-test simulates a DNS server by receiving data from the cache.data fil
 ```sh
 Commands:
   Required parameters:
-    -listen 0.0.0.0:00            Listen address
+    -l  "x.x.x.x:xx"  Listen address
 ```
