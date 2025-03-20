@@ -2,7 +2,6 @@
 
 volatile int32_t sended;
 volatile int32_t readed;
-
 volatile int32_t error_count;
 
 array_hashmap_t domains_map_struct;
@@ -29,17 +28,6 @@ void errmsg(const char *format, ...)
 
     exit(EXIT_FAILURE);
 }
-
-#define GET_DOMAIN_OK 0
-#define GET_DOMAIN_FIRST_BYTE_ERROR 1
-#define GET_DOMAIN_SECOND_BYTE_ERROR 3
-#define GET_DOMAIN_LAST_CH_DOMAIN_ERROR 2
-#define GET_DOMAIN_MAX_JUMP_COUNT 100
-#define GET_DOMAIN_JUMP_COUNT_ERROR 4
-#define GET_DOMAIN_TWO_BITS_ERROR 5
-#define GET_DOMAIN_CH_BYTE_ERROR 6
-#define GET_DOMAIN_ADD_CH_DOMAIN_ERROR 7
-#define GET_DOMAIN_NULL_CH_DOMAIN_ERROR 8
 
 int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **new_cur_pos_ptr,
                                memory_t *domain)
