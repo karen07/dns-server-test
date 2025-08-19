@@ -1,4 +1,4 @@
-#include "dns-server-test.h"
+#include "dns_server_test.h"
 
 volatile int32_t sended;
 volatile int32_t readed;
