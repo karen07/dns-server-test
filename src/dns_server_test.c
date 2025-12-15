@@ -101,8 +101,10 @@ int32_t get_domain_from_packet(memory_t *receive_msg, char *cur_pos_ptr, char **
     return GET_DOMAIN_OK;
 }
 
-void *stat(__attribute__((unused)) void *arg)
+void *stat(void *arg)
 {
+    (void)arg;
+
     int32_t sended_old = 0;
     int32_t readed_old = 0;
 
