@@ -1,12 +1,12 @@
 # DNS server test
 
-DNS server test is a small cache-backed UDP DNS server for reproducible DNS experiments.
-
-It loads responses previously recorded by `dns-client-test` and replies directly from that cache instead of using an upstream resolver. The cache file can be selected explicitly, which makes separate `A` and `HTTPS` replay datasets easy to use.
+A cache-backed UDP DNS server for reproducible experiments. It replays responses captured
+by `dns-client-test` without querying an upstream DNS resolver.
 
 ## Описание
 
-DNS server test - небольшой UDP DNS сервер для воспроизводимых DNS-экспериментов.
+Тестовый UDP DNS-сервер для воспроизводимых экспериментов. Воспроизводит ответы из кеша,
+записанного `dns-client-test`, без обращения к вышестоящему DNS-резолверу.
 
 Вместо рекурсивного разрешения имен сервер загружает cache-файл, созданный `dns-client-test`, индексирует сохраненные ответы по домену и возвращает соответствующий DNS-пакет клиенту.
 
